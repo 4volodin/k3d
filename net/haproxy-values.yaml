@@ -1,0 +1,11 @@
+# The useHostPort parameter means that HAProxy will bind to ports 80/443/1024 based on the default values in the main values file.
+# Port 80 is what K3d is going to forward traffic to based on its configuration file.
+# And finally, with HAProxy using hostPorts to get traffic to the pods, a service fronting HAProxy is not necessary, so service.enabled is set to false.
+controller:
+  kind: DaemonSet
+  daemonset:
+    useHostPort: true
+
+service:
+  enabled: false
+

@@ -1,0 +1,114 @@
+apiVersion: k3d.io/v1alpha4
+kind: Simple
+metadata:
+  name: devbox
+servers: 1
+agents: 3
+kubeAPI: # same as `--api-port myhost.my.domain:6445` (where the name would resolve to 127.0.0.1)
+  host: "api.dev.k3d" # important for the `server` setting in the kubeconfig
+  hostIP: "127.0.0.1" # where the Kubernetes API will be listening on
+  hostPort: "6445" # where the Kubernetes API listening port will be mapped to on your host system
+
+ports:
+  - port: 32080:80
+    nodeFilters:
+    - loadbalancer
+  - port: 32443:443
+    nodeFilters:
+    - loadbalancer
+  # - port: 32000-32070:32000-32070
+  #   nodeFilters:
+  #   - loadbalancer
+options:
+  k3s:
+    extraArgs:
+      - arg: "--disable=traefik"
+        nodeFilters:
+          - servers:*
+      - arg: "--flannel-backend=none"
+        nodeFilters:
+          - servers:*
+      - arg: "--disable-network-policy"
+        nodeFilters:
+          - servers:*
+      - arg: "--kube-apiserver-arg=oidc-issuer-url=https://gitlab.com"
+        nodeFilters:
+          - server:*
+      - arg: "--kube-apiserver-arg=oidc-client-id=992e84536bd315b1ddddd4ca84a6fc5aa5a86f2abf2dad1ddb7a8caae13707ff"
+        nodeFilters:
+          - server:*
+      # - arg: "--kube-apiserver-arg=oidc-username-claim=email"
+      - arg: "--kube-apiserver-arg=oidc-username-claim=user_email"
+        nodeFilters:
+          - server:*
+      - arg: "--kube-apiserver-arg=oidc-username-prefix=oidc:"
+        nodeFilters:
+          - server:*
+      - arg: "--kube-apiserver-arg=oidc-groups-claim=groups_direct"
+        nodeFilters:
+          - server:*
+      - arg: "--kube-apiserver-arg=oidc-groups-prefix=gitlab:"
+        nodeFilters:
+          - server:*
+
+    nodeLabels:
+      - label: topology.kubernetes.io/zone=zone-a
+        nodeFilters:
+          - agent:0
+      - label: topology.kubernetes.io/zone=zone-b
+        nodeFilters:
+          - agent:1
+      - label: topology.kubernetes.io/zone=zone-c
+        nodeFilters:
+          - agent:2
+volumes:
+  - volume: ${HOME}/Library/Application Support/mkcert/rootCA.pem:/etc/ssl/certs/rootCA.pem
+    nodeFilters:
+      - all:*
+  - volume: ${HOME}/code/devbox/k3d/net/calico.yaml:/var/lib/rancher/k3s/server/manifests/calico.yaml
+    nodeFilters:
+      - servers:*
+      - agents:*
+  - volume: $HOME/local/storage/k3d:/var/storage
+    nodeFilters:
+      - servers:*
+      - agents:*
+
+# more info here https://k3d.io/usage/guides/registries
+# https://rancher.com/docs/k3s/latest/en/installation/private-registry/
+registries:
+  create: # creates a default registry to be used with the cluster; same as `--registry-create registry.localhost`
+    name: registry.localhost
+    host: "0.0.0.0"
+    hostPort: "6000"
+    proxy:
+      remoteURL: https://registry-1.docker.io # mirror the DockerHub registry
+    #   username: user
+    #   password: user
+  config: |
+    mirrors:
+      "docker.io":
+        endpoint:
+          # - http://10.0.1.100:6000
+          - http://host.k3d.internal:6000
+      "host.k3d.internal:6000":
+        endpoint:
+          - http://host.k3d.internal:6000
+      "registry.docker":
+        endpoint:
+          - https://registry.docker
+    ## Authentication and TLS can be added
+    configs:
+      "registry.docker":
+        auth:
+          username: voale
+          password: voale
+        tls:
+          ca_file: "/etc/ssl/certs/rootCA.pem"
+    #  "host.k3d.internal:6000":
+    #    auth:
+    #      username: myname
+    #      password: mypwd
+    #    tls:
+    ##     we will mount "my-company-root.pem" in the /etc/ssl/certs/ directory.
+    #      ca_file: "/etc/ssl/certs/my-company-root.pem"

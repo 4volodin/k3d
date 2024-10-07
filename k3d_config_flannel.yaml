@@ -1,0 +1,91 @@
+apiVersion: k3d.io/v1alpha4
+kind: Simple
+metadata:
+  name: test-k3d
+servers: 1
+agents: 3
+ports:
+  - port: 32080:80
+    nodeFilters:
+    - loadbalancer
+  - port: 32443:443
+    nodeFilters:
+    - loadbalancer
+  # - port: 32000-32070:32000-32070
+  #   nodeFilters:
+  #   - loadbalancer
+options:
+  k3s:
+    extraArgs:
+      - arg: "--disable=traefik"
+        nodeFilters:
+          - servers:*
+      # - arg: "--kube-apiserver-arg=oidc-issuer-url=https://kc.truedev.ru/realms/truedev"
+      #   nodeFilters:
+      #     - server:*
+      # - arg: "--kube-apiserver-arg=oidc-client-id=devbox-kind"
+      #   nodeFilters:
+      #     - server:*
+      # - arg: "--kube-apiserver-arg=oidc-username-claim=email"
+      #   nodeFilters:
+      #     - server:*
+      # - arg: "--kube-apiserver-arg=oidc-groups-claim=groups"
+      #   nodeFilters:
+      #     - server:*
+    nodeLabels:
+      - label: topology.kubernetes.io/zone=zone-a
+        nodeFilters:
+          - agent:0
+      - label: topology.kubernetes.io/zone=zone-b
+        nodeFilters:
+          - agent:1
+      - label: topology.kubernetes.io/zone=zone-c
+        nodeFilters:
+          - agent:2
+volumes:
+  - volume: ${HOME}/Library/Application Support/mkcert/rootCA.pem:/etc/ssl/certs/rootCA.pem
+    nodeFilters:
+      - all:*
+  - volume: $HOME/local/storage/k3d:/var/storage
+    nodeFilters:
+      - servers:*
+      - agents:*
+
+# more info here https://k3d.io/usage/guides/registries
+# https://rancher.com/docs/k3s/latest/en/installation/private-registry/
+registries:
+  create: # creates a default registry to be used with the cluster; same as `--registry-create registry.localhost`
+    name: registry.localhost
+    host: "0.0.0.0"
+    hostPort: "6000"
+    proxy:
+      remoteURL: https://registry-1.docker.io # mirror the DockerHub registry
+    #   username: user
+    #   password: user
+  config: |
+    mirrors:
+      "docker.io":
+        endpoint:
+          # - http://10.0.1.100:6000
+          - http://host.k3d.internal:6000
+      "host.k3d.internal:6000":
+        endpoint:
+          - http://host.k3d.internal:6000
+      "registry.docker":
+        endpoint:
+          - https://registry.docker
+    ## Authentication and TLS can be added
+    configs:
+      "registry.docker":
+        auth:
+          username: voale
+          password: voale4586
+        tls:
+          ca_file: "/etc/ssl/certs/rootCA.pem"
+    #  "host.k3d.internal:6000":
+    #    auth:
+    #      username: myname
+    #      password: mypwd
+    #    tls:
+    ##     we will mount "my-company-root.pem" in the /etc/ssl/certs/ directory.
+    #      ca_file: "/etc/ssl/certs/my-company-root.pem"
